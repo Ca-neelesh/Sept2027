@@ -1049,7 +1049,7 @@ input.t-in  { width:62px; }
   <!-- DIRECT TAX -->
   <div class="sub-pane" id="sub-dt">
     <div class="sch-stats-sticky">
-      <div style="font-size:10px;color:var(--text2);font-family:'JetBrains Mono',monospace;letter-spacing:1px;margin-bottom:8px;">~250 Hours · Paper 4 · 81 lectures so far · enter your time per lecture and mark done · exact durations get matched when the full list arrives</div>
+      <div style="font-size:10px;color:var(--text2);font-family:'JetBrains Mono',monospace;letter-spacing:1px;margin-bottom:8px;">~250 Hours · Paper 4 · 81 lectures · 2 parts each · enter your time per part and mark it done · exact durations get matched when the full list arrives</div>
       <div class="sch-stats">
         <div class="sstat"><div class="sstat-v" id="dt-n">0</div><div class="sstat-l">LECTURES</div></div>
         <div class="sstat"><div class="sstat-v" id="dt-pct">0%</div><div class="sstat-l">COMPLETE</div></div>
@@ -1213,7 +1213,7 @@ input.t-in  { width:62px; }
       <div style="font-size:10px;color:var(--text2);font-family:'JetBrains Mono',monospace;line-height:1.5;">Forgot to log? Pick an earlier date and add what you studied that day. It counts toward your streak and heatmap.</div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
         <input type="date" id="bf-from" style="background:#1a1d30;border:1px solid var(--border);color:var(--text);font-family:'JetBrains Mono',monospace;font-size:11px;padding:7px;outline:none;color-scheme:dark;"/>
-        <input id="bf-h" type="number" min="0" max="24" placeholder="hrs" style="width:60px;background:#1a1d30;border:1px solid var(--border);color:var(--text);font-family:'JetBrains Mono',monospace;font-size:11px;padding:7px;outline:none;color-scheme:dark;"/>
+        <select id="bf-sub" style="background:#1a1d30;border:1px solid var(--border);color:var(--text);font-family:'JetBrains Mono',monospace;font-size:11px;padding:7px;outline:none;color-scheme:dark;"><option value="">General</option><option value="FR · ">FR</option><option value="AFM · ">AFM</option><option value="DT · ">DT</option><option value="IDT · ">IDT</option><option value="AUDIT · ">Audit</option><option value="IBS · ">IBS</option></select><input id="bf-h" type="number" min="0" max="24" placeholder="hrs" style="width:60px;background:#1a1d30;border:1px solid var(--border);color:var(--text);font-family:'JetBrains Mono',monospace;font-size:11px;padding:7px;outline:none;color-scheme:dark;"/>
         <input id="bf-m" type="number" min="0" max="59" placeholder="min" style="width:60px;background:#1a1d30;border:1px solid var(--border);color:var(--text);font-family:'JetBrains Mono',monospace;font-size:11px;padding:7px;outline:none;color-scheme:dark;"/>
         <input id="bf-note" placeholder="What did you study? (optional)" style="flex:1;min-width:160px;background:#1a1d30;border:1px solid var(--border);color:var(--text);font-family:'JetBrains Mono',monospace;font-size:11px;padding:7px;outline:none;color-scheme:dark;"/>
         <button class="log-sub" onclick="addBackfill()">ADD</button>
@@ -1371,44 +1371,78 @@ function migrateDT(){ // old manual DT hours -> one recorded entry
   if(h>0&&!(S.dtLecs||[]).length){ S.dtLecs=[{id:Date.now(),l:0,mins:Math.round(h*60),dateKey:todayStr()}]; S.hours.dt=0; save(); }
 }
 const DT_COUNT=81;
+const SUB_TOTAL_H={dt:250,idt:140,audit:150,ibs:100};
+const SUBCODE={fr:'FR',afm:'AFM',dt:'DT',idt:'IDT',audit:'AUDIT',ibs:'IBS'};
+function subLogMins(id,dk){ const pre=SUBCODE[id]+' · '; return S.log.reduce((a,e)=>a+(((e.text||'').indexOf(pre)===0&&(!dk||e.dateKey===dk))?entMins(e):0),0); }
+function subAvg7(id){ let m=0; const d=new Date(); for(let i=0;i<7;i++){ m+=subLogMins(id,dKey(d)); d.setDate(d.getDate()-1); } return m/7; }
+function subTotals(id){
+  if(id==='fr'){ const f=getFRStats(); return {done:f.wm,total:f.tm}; }
+  if(id==='afm'){ const a=getAFMStats(); return {done:a.wm,total:a.tm}; }
+  return {done:Math.round(getSubjectHours(id)*60),total:SUB_TOTAL_H[id]*60};
+}
+function addSubTime(id){
+  const mins=(parseInt(document.getElementById('st-h-'+id).value)||0)*60+(parseInt(document.getElementById('st-m-'+id).value)||0);
+  if(!mins){alert('Enter the time you studied (hours and/or minutes)'); return;}
+  const now=new Date();
+  S.log.push({date:now.toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}),dateKey:todayStr(),time:now.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}),text:SUBCODE[id]+' · study',hours:(mins/60).toFixed(2),mins,type:'manual'});
+  save(); updateStats(); renderSG('sg-dash'); renderStreak(); renderHeatmap(); renderTodayFeed(); renderDashTodayFeed(); renderLog('le1'); renderLog('le2');
+}
+function dtDone(){ const by={}; (S.dtLecs||[]).forEach(x=>{ by[x.l+'_'+(x.p||1)]=(by[x.l+'_'+(x.p||1)]||[]).concat(x); }); return by; }
+function migrateDTParts(){ // old one-piece DT entries -> Pt.1 + Pt.2 (time split in half, same date)
+  const L=S.dtLecs||[], old=L.filter(x=>x.l>0&&!x.p); if(!old.length) return;
+  const oldIds=new Set(old.map(x=>x.id)); let n=0;
+  S.log=S.log.filter(e=>!oldIds.has(e.ref));
+  S.dtLecs=L.filter(x=>!oldIds.has(x.id));
+  old.forEach(x=>{
+    const a=Math.ceil(x.mins/2);
+    [[1,a],[2,x.mins-a]].forEach(([pt,m])=>{
+      if(m<=0) return; const id=Date.now()+(n++);
+      S.dtLecs.push({id,l:x.l,p:pt,mins:m,dateKey:x.dateKey});
+      S.log.push({date:parseKey(x.dateKey).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}),dateKey:x.dateKey,text:'DT · Lec '+x.l+' Pt.'+pt,hours:(m/60).toFixed(2),mins:m,type:'done',auto:true,ref:id});
+    });
+  });
+  save();
+}
 function renderDT(){
   const set=(id,v)=>{const e=document.getElementById(id); if(e) e.textContent=v;};
-  const L=S.dtLecs||[], m=dtMins(), by={};
-  L.forEach(x=>{(by[x.l]=by[x.l]||[]).push(x);});
-  const doneN=Object.keys(by).filter(k=>+k>0).length;
-  set('dt-n',doneN+'/'+DT_COUNT);
+  const L=S.dtLecs||[], m=dtMins(), by=dtDone();
+  let full=0; for(let l=1;l<=DT_COUNT;l++) if(by[l+'_1']&&by[l+'_2']) full++;
+  set('dt-n',full+'/'+DT_COUNT);
   set('dt-pct',Math.min(100,Math.round(m/DT_TOTAL_MIN*100))+'%');
   set('dt-hw',fmtMin(m)); set('dt-hl',fmtMin(Math.max(0,DT_TOTAL_MIN-m)));
   const d=document.getElementById('dt-d'); if(d){ if(!d.value) d.value=todayStr(); d.max=todayStr(); }
   const c=document.getElementById('dt-list'); if(!c) return;
   const top=c.scrollTop, N=Math.max(DT_COUNT,...L.map(x=>x.l)), inp="background:#1a1d30;border:1px solid var(--border);color:var(--text);font-family:'JetBrains Mono',monospace;font-size:11px;padding:5px;outline:none;width:48px;text-align:center;";
   let h='';
-  if(by[0]) h+='<div class="log-entry lec-done"><div class="log-date">Earlier</div><div class="log-txt" style="flex:1;">Hours added before lecture tracking</div><div class="log-htag">'+fmtMin(by[0].reduce((a,x)=>a+x.mins,0))+'</div><button class="bbtn" style="padding:2px 8px;" onclick="delDT(0)">✕</button></div>';
-  for(let l=1;l<=N;l++){
-    if(by[l]){
-      const mins=by[l].reduce((a,x)=>a+x.mins,0), dk=by[l][by[l].length-1].dateKey;
-      h+='<div class="log-entry lec-done"><div class="log-date">Lec '+l+'</div><div class="log-txt" style="flex:1;">✓ '+(dk?esc(parseKey(dk).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})):'')+'</div><div class="log-htag">'+fmtMin(mins)+'</div><button class="bbtn" style="padding:2px 8px;" title="Undo" onclick="delDT('+l+')">✕</button></div>';
+  if(by['0_1']) h+='<div class="log-entry lec-done"><div class="log-date">Earlier</div><div class="log-txt" style="flex:1;">Hours added before lecture tracking</div><div class="log-htag">'+fmtMin(by['0_1'].reduce((a,x)=>a+x.mins,0))+'</div><button class="bbtn" style="padding:2px 8px;" onclick="delDT(0,1)">✕</button></div>';
+  for(let l=1;l<=N;l++) for(let p=1;p<=2;p++){
+    const k=l+'_'+p, bd=p===1?'border-top:1px solid var(--border);':'';
+    if(by[k]){
+      const mins=by[k].reduce((a,x)=>a+x.mins,0), dk=by[k][by[k].length-1].dateKey;
+      h+='<div class="log-entry lec-done" style="'+bd+'"><div class="log-date">Lec '+l+' · Pt.'+p+'</div><div class="log-txt" style="flex:1;">✓ '+(dk?esc(parseKey(dk).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})):'')+'</div><div class="log-htag">'+fmtMin(mins)+'</div><button class="bbtn" style="padding:2px 8px;" title="Undo" onclick="delDT('+l+','+p+')">✕</button></div>';
     } else {
-      h+='<div class="log-entry manual" style="align-items:center;"><div class="log-date">Lec '+l+'</div><div style="flex:1;"></div><input id="dth-'+l+'" type="number" min="0" max="24" placeholder="hrs" style="'+inp+'"/><input id="dtm-'+l+'" type="number" min="0" max="59" placeholder="min" style="'+inp+'"/><button class="bbtn" style="padding:5px 10px;" onclick="addDT('+l+')">DONE</button></div>';
+      h+='<div class="log-entry manual" style="align-items:center;'+bd+'"><div class="log-date">Lec '+l+' · Pt.'+p+'</div><div style="flex:1;"></div><input id="dth-'+k+'" type="number" min="0" max="24" placeholder="hrs" style="'+inp+'"/><input id="dtm-'+k+'" type="number" min="0" max="59" placeholder="min" style="'+inp+'"/><button class="bbtn" style="padding:5px 10px;" onclick="addDT('+l+','+p+')">DONE</button></div>';
     }
   }
   c.innerHTML=h; c.scrollTop=top;
 }
-function addDT(l){
-  const mins=(parseInt(document.getElementById('dth-'+l).value)||0)*60+(parseInt(document.getElementById('dtm-'+l).value)||0);
+function dtRefresh(){ save(); renderDT(); updateStats(); renderSG('sg-dash'); renderPace(); renderStreak(); renderHeatmap(); renderTodayFeed(); renderDashTodayFeed(); }
+function addDT(l,p){
+  const k=l+'_'+p;
+  const mins=(parseInt(document.getElementById('dth-'+k).value)||0)*60+(parseInt(document.getElementById('dtm-'+k).value)||0);
   const dk=document.getElementById('dt-d').value||todayStr();
   if(!mins){alert('Enter the time you took (hours and/or minutes)'); return;}
   if(dk>todayStr()){alert('Pick today or an earlier date'); return;}
   const id=Date.now();
-  S.dtLecs=S.dtLecs||[]; S.dtLecs.push({id,l,mins,dateKey:dk});
-  S.log.push({date:parseKey(dk).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}),dateKey:dk,time:dk===todayStr()?new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}):'',text:'DT · Lec '+l,hours:(mins/60).toFixed(2),mins,type:'done',auto:true,ref:id});
-  save(); renderDT(); updateStats(); renderSG('sg-dash'); renderPace(); renderStreak(); renderHeatmap(); renderTodayFeed(); renderDashTodayFeed();
+  S.dtLecs=S.dtLecs||[]; S.dtLecs.push({id,l,p,mins,dateKey:dk});
+  S.log.push({date:parseKey(dk).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}),dateKey:dk,time:dk===todayStr()?new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}):'',text:'DT · Lec '+l+' Pt.'+p,hours:(mins/60).toFixed(2),mins,type:'done',auto:true,ref:id});
+  dtRefresh();
 }
-function delDT(l){
-  if(!confirm(l?'Undo DT Lec '+l+'?':'Remove these earlier hours?')) return;
-  const ids=new Set((S.dtLecs||[]).filter(x=>x.l===l).map(x=>x.id));
-  S.dtLecs=(S.dtLecs||[]).filter(x=>x.l!==l); S.log=S.log.filter(e=>!ids.has(e.ref));
-  save(); renderDT(); updateStats(); renderSG('sg-dash'); renderPace(); renderStreak(); renderHeatmap(); renderTodayFeed(); renderDashTodayFeed();
+function delDT(l,p){
+  if(!confirm(l?'Undo DT Lec '+l+' Pt.'+p+'?':'Remove these earlier hours?')) return;
+  const hit=x=>x.l===l&&(x.p||1)===p, ids=new Set((S.dtLecs||[]).filter(hit).map(x=>x.id));
+  S.dtLecs=(S.dtLecs||[]).filter(x=>!hit(x)); S.log=S.log.filter(e=>!ids.has(e.ref));
+  dtRefresh();
 }
 function afmLecs(ch){ return ch.lecs.map(x=>x.l); }
 function afmDurMin(ch,l){ const x=ch.lecs[l-1]; return x?d2m(x.d):0; }
@@ -1613,7 +1647,7 @@ function updateStats(){
   const fr=getFRStats(), afm=getAFMStats();
   // Auto hours: FR + AFM from lecture durations + manual for others
   const frH=(fr.wm/60), afmH=(afm.wm/60);
-  const manualH=['idt','audit','ibs'].reduce((a,id)=>a+(S.hours[id]||0),0)+dtMins()/60;
+  const manualH=['idt','audit','ibs'].reduce((a,id)=>a+getSubjectHours(id),0)+dtMins()/60;
   const totalH = frH+afmH+manualH;
   // Topics: FR chapters 100% done + AFM chapters 100% done
   const frChDone=FR_CHAPTERS.filter(ch=>getFRChPct(ch)===100).length;
@@ -1662,7 +1696,7 @@ function getSubjectHours(subId){
     const afm=getAFMStats(); return (afm.wm/60);
   }
   if(subId==='dt') return dtMins()/60;
-  return S.hours[subId]||0;
+  return (S.hours[subId]||0)+subLogMins(subId)/60;
 }
 function getSubjectProgress(subId){
   if(subId==='fr'){
@@ -1675,7 +1709,7 @@ function getSubjectProgress(subId){
     return {done, total:AFM_CHAPTERS.length, pct:Math.round(getAFMStats().w/getAFMStats().tot*100)};
   }
   // Other subjects — manual hours based
-  const h=S.hours[subId]||0;
+  const h=getSubjectHours(subId);
   const total = subId==='dt'?250:subId==='idt'?140:subId==='audit'?150:100;
   const pct = Math.min(100,Math.round(h/total*100));
   return {done:null, total, pct};
@@ -1691,7 +1725,7 @@ function renderSG(cid){
       ? (prog.done+'/'+prog.total+' chapters \xB7 '+fmtMin(Math.round(h*60)))
       : (fmtMin(Math.round(h*60))+' of ~'+prog.total+'h');
     const hasManual = sub.id!=='fr'&&sub.id!=='afm'&&sub.id!=='dt';
-    const manualInput = '<input class="hrs-in" type="number" value="'+h+'" min="0" placeholder="hrs" onchange="upHrs(\''+sub.id+'\',this.value)"/>';
+    const manualInput = '<input class="hrs-in" type="number" value="'+(S.hours[sub.id]||0)+'" title="Hours studied before daily tracking. Time you log each day is added automatically." min="0" placeholder="hrs" onchange="upHrs(\''+sub.id+'\',this.value)"/>';
     const autoTag = '<div style="width:52px;font-family:var(--mono);font-size:9px;color:var(--muted);text-align:center;">AUTO</div>';
     const r=document.createElement("div"); r.className="subj-row";
     r.innerHTML='<div><div class="subj-name">'+sub.name+'</div><div class="subj-grp">'+sub.paper+' \xB7 '+sub.group+'</div></div>'
@@ -2109,7 +2143,7 @@ function delLog(i){ if(!S.log[i]||!confirm('Delete this log entry?')) return; S.
 function addBackfill(){
   const f=document.getElementById('bf-from').value;
   const mins=(parseInt(document.getElementById('bf-h').value)||0)*60+(parseInt(document.getElementById('bf-m').value)||0);
-  const note=document.getElementById('bf-note').value.trim()||'Study (added later)';
+  const sub=document.getElementById('bf-sub').value, note=sub+(document.getElementById('bf-note').value.trim()||(sub?'study':'Study (added later)'));
   if(!f){alert('Pick a date'); return;}
   if(f>todayStr()){alert('Pick today or an earlier date'); return;}
   if(!mins){alert('Enter hours and/or minutes studied'); return;}
@@ -2486,86 +2520,42 @@ document.getElementById('target-in').addEventListener('keydown',e=>{if(e.key==='
 // PACE CALCULATOR
 // ═══════════════════════════════════════════════
 function renderPace(){
-  const pb = document.getElementById('pace-body'); if(!pb)return;
-  const now = new Date();
-  const sylDeadline = new Date(2027,0,20); // Jan 20 2027 — full syllabus done
-
-  // Subject-specific deadlines (lecture completion)
-  const afmExpiry = sylDeadline; //  // Jul 12 2026 — AFM lectures expire
-  const frExpiry  = sylDeadline; //  // Jul 31 2026 — FR self-deadline
-  const otherDL   = sylDeadline;
-
-  function dLeft(d){ return Math.max(1, Math.ceil((d-now)/86400000)); }
-  function wLeft(d){ return dLeft(d)/7; }
-
-  const sylDays = dLeft(sylDeadline);
-  const afmDays = dLeft(afmExpiry);
-  const frDays  = dLeft(frExpiry);
-
-  // FR
-  const fr = getFRStats();
-  const frLeft = fr.tot - fr.w;
-  const frHrsLeft = (fr.tm - fr.wm)/60;
-  const frPerDay  = frLeft / frDays;
-  const frHrDay   = frHrsLeft / frDays;
-
-  // AFM
-  const afm = getAFMStats();
-  const afmLeft = afm.tot - afm.w;
-  const afmHrsLeft = (afm.tm - afm.wm)/60;
-  const afmPerDay  = afmLeft / afmDays;
-  const afmHrDay   = afmHrsLeft / afmDays;
-
-  // Other subjects — hours-only (no lecture tracker yet)
-  // DT: 245h total, IDT: 140h, Audit: 150h — we track via manual hours entered
-  const dtTotal=250, idtTotal=140, auditTotal=150;
-  const dtDone   = dtMins()/60;
-  const idtDone  = S.hours['idt']  ||0;
-  const auditDone= S.hours['audit']||0;
-  const dtLeft   = Math.max(0, dtTotal  - dtDone);
-  const idtLeft  = Math.max(0, idtTotal - idtDone);
-  const auditLeft= Math.max(0, auditTotal- auditDone);
-  const otherHrsLeft = dtLeft + idtLeft + auditLeft;
-  const otherHrDay = otherHrsLeft / sylDays;
-
-  // Total daily hours needed
-  const totalHrDay = frHrDay + afmHrDay + otherHrDay;
-
-  // Colour helper
+  const pb=document.getElementById('pace-body'); if(!pb) return;
+  const now=new Date(), DL=new Date(2027,0,20), today=todayStr();
+  const days=Math.max(1,Math.ceil((DL-now)/86400000));
   const cls=(v,ok,warn)=>v<=ok?'ok':v<=warn?'warn':'bad';
   const card=(label,val,c,desc)=>`<div class="pace-card"><div class="pace-label">${label}</div><div class="pace-val ${c}">${val}</div><div class="pace-desc">${desc}</div></div>`;
   const divider=(label)=>`<div style="grid-column:1/-1;font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;letter-spacing:2px;color:var(--text2);padding:6px 0 2px;border-bottom:1px solid var(--border);margin-top:4px;">${label}</div>`;
-
-  const pace = totalHrDay<=6?'ok':totalHrDay<=10?'warn':'bad';
-  const paceMsg = totalHrDay<=6
-    ? '✓ ON TRACK — Daily target is manageable'
-    : totalHrDay<=10
-    ? '⚠ PUSH HARDER — Tight but doable. Cut distractions.'
-    : '✗ CRITICAL — Immediate action needed. Start now.';
-
-  pb.innerHTML=`
-    ${divider('OVERALL')}
-    ${card('DAYS TO JAN 20, 2027', sylDays+'d', cls(totalHrDay,6,10), Math.ceil(sylDays/7)+' weeks left')}
-    ${card('TOTAL HRS/DAY NEEDED', totalHrDay.toFixed(1)+'h', cls(totalHrDay,6,10), 'All 6 subjects combined')}
-
-    ${divider('FR — DEADLINE JAN 20, 2027')}
-    ${card('DAYS LEFT', frDays+'d', cls(frHrDay,3,5), Math.ceil(frDays/7)+' weeks')}
-    ${card('FR PARTS/DAY', frPerDay.toFixed(1), cls(frPerDay,3,6), frLeft+' parts remaining')}
-    ${card('FR HRS/DAY', frHrDay.toFixed(1)+'h', cls(frHrDay,3,5), fmtMin(fr.tm-fr.wm)+' remaining')}
-
-    ${divider('AFM — DEADLINE JAN 20, 2027')}
-    ${card('DAYS LEFT', afmDays+'d', cls(afmHrDay,2,4), 'Deadline '+afmExpiry.toLocaleDateString('en-IN',{day:'2-digit',month:'short'}))}
-    ${card('AFM LECS/DAY', afmPerDay.toFixed(1), cls(afmPerDay,1,2), afmLeft+' lectures remaining')}
-    ${card('AFM HRS/DAY', afmHrDay.toFixed(1)+'h', cls(afmHrDay,2,4), fmtMin(afm.tm-afm.wm)+' remaining')}
-
-    ${divider('OTHER SUBJECTS — TARGET JAN 20, 2027')}
-    ${card('DT HRS LEFT', dtLeft+'h', cls(dtLeft/sylDays*7,10,20), fmtMin(Math.round(dtDone*60))+' done of '+dtTotal+'h')}
-    ${card('IDT HRS LEFT', idtLeft+'h', cls(idtLeft/sylDays*7,7,15), idtDone+'h done of '+idtTotal+'h')}
-    ${card('AUDIT HRS LEFT', auditLeft+'h', cls(auditLeft/sylDays*7,7,15), auditDone+'h done of '+auditTotal+'h')}
-    ${card('OTHER HRS/DAY', otherHrDay.toFixed(1)+'h', cls(otherHrDay,3,6), 'DT + IDT + Audit combined')}
-
-    <div class="pace-status ${pace}" style="grid-column:1/-1;">${paceMsg}</div>
-  `;
+  const fin=(left,avg)=>{ if(left<=0) return 'completed ✓'; if(avg<=0) return 'no study logged in the last 7 days'; const d=new Date(now.getTime()+Math.ceil(left/avg)*86400000); return 'at this pace: '+d.toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}); };
+  const inp="width:40px;background:var(--bg);border:1px solid var(--border);color:var(--text);font-family:'JetBrains Mono',monospace;font-size:10px;padding:3px;text-align:center;color-scheme:dark;";
+  let totalNeed=0, html='';
+  SUBJECTS.forEach(sub=>{
+    const id=sub.id, code=SUBCODE[id], t=subTotals(id), left=Math.max(0,t.total-t.done), need=left/days;
+    totalNeed+=need;
+    const pct=t.total?Math.min(100,Math.round(t.done/t.total*100)):0;
+    const todayM=subLogMins(id,today), avg=subAvg7(id);
+    let extra='';
+    if(id==='fr'){ const f=getFRStats(); extra=' · '+f.w+'/'+f.tot+' parts'; }
+    else if(id==='afm'){ const a=getAFMStats(); extra=' · '+a.w+'/'+a.tot+' lectures'; }
+    else if(id==='dt'){ extra=' · '+(S.dtLecs||[]).length+'/'+(DT_COUNT*2)+' parts'; }
+    const needC=cls(need/60,2,4);
+    const logBox=(id==='idt'||id==='audit'||id==='ibs')
+      ? `<div style="margin-top:6px;display:flex;gap:4px;align-items:center;"><input id="st-h-${id}" type="number" min="0" placeholder="h" style="${inp}"/><input id="st-m-${id}" type="number" min="0" max="59" placeholder="m" style="${inp}"/><button class="bbtn" style="padding:3px 8px;" onclick="addSubTime('${id}')">+ LOG</button></div>`
+      : '';
+    html+=divider(`${code} — ${sub.name.toUpperCase()} · JAN 20, 2027`);
+    html+=card(code+' DONE',fmtMin(t.done),pct>=100?'ok':needC,'of '+fmtMin(t.total)+' · '+pct+'%'+extra+' · '+fmtMin(left)+' left');
+    html+=card(code+' TODAY',fmtMin(todayM),left<=0||todayM>=need?'ok':todayM>0?'warn':'bad','needed: '+fmtMin(Math.round(need))+'/day'+logBox);
+    html+=card(code+' 7-DAY AVG',fmtMin(Math.round(avg))+'/day',left<=0||avg>=need?'ok':avg>0?'warn':'bad',fin(left,avg));
+  });
+  const totalHrDay=totalNeed/60;
+  const todayAll=S.log.filter(e=>e.dateKey===today).reduce((a,e)=>a+entMins(e),0);
+  const pace=totalHrDay<=6?'ok':totalHrDay<=10?'warn':'bad';
+  const paceMsg=totalHrDay<=6?'✓ ON TRACK — Daily target is manageable':totalHrDay<=10?'⚠ PUSH HARDER — Tight but doable. Cut distractions.':'✗ CRITICAL — Immediate action needed. Start now.';
+  pb.innerHTML=divider('OVERALL')
+    +card('DAYS TO JAN 20, 2027',days+'d',cls(totalHrDay,6,10),Math.ceil(days/7)+' weeks left')
+    +card('TOTAL HRS/DAY NEEDED',fmtMin(Math.round(totalNeed))+'/day',cls(totalHrDay,6,10),'All 6 subjects combined')
+    +card('STUDIED TODAY',fmtMin(todayAll),todayAll>=totalNeed?'ok':todayAll>0?'warn':'bad','needed: '+fmtMin(Math.round(totalNeed))+'/day')
+    +html+`<div class="pace-status ${pace}" style="grid-column:1/-1;">${paceMsg}</div>`;
 }
 
 // ═══════════════════════════════════════════════
@@ -2615,7 +2605,7 @@ function renderWeakSection(){
 // ═══════════════════════════════════════════════
 async function init(){
   await loadState();
-  pruneOldAfm(); migrateDT();
+  pruneOldAfm(); migrateDT(); migrateDTParts();
   updateCountdowns();
   populateTestSel();
   renderSG('sg-dash');
