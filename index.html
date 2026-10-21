@@ -1360,6 +1360,32 @@ const AFM_RAW=[
 ];
 const AFM_CHAPTERS=AFM_RAW.map(r=>({id:r[0],no:r[1],name:r[2],lecs:r[3].split(' ').map((d,i)=>({l:i+1,d:d,t:r[4]?r[4][i]:''}))}));
 AFM_CHAPTERS.forEach(c=>{c.cnt=c.lecs.length;c.mins=c.lecs.reduce((a,x)=>a+d2m(x.d),0);});
+// One log line per DT part / lecture: removes duplicates and stale lines (runs on load, sync and save)
+function normalizeLog(){
+  const P=S.dtP||{}, seen=new Set(), keep=[];
+  for(let i=S.log.length-1;i>=0;i--){ // newest first, so the latest line wins
+    const e=S.log[i], r=e.ref;
+    if(typeof r==='string'&&r.indexOf('dt_')===0){
+      const rec=P[r.slice(3)];
+      if(!rec||seen.has(r)||e.mins!==rec.mins||e.dateKey!==rec.dateKey) continue;
+      seen.add(r);
+    } else if(e.auto&&typeof e.text==='string'&&e.text.indexOf('DT · ')===0){ continue; } // old-style DT line (replaced by per-part lines)
+    else if(typeof r==='string'&&/^(fr|afm):/.test(r)){
+      const m=r.match(/^(fr|afm):(.+?)(:ip)?$/), W=S[m[1]+'W']||{};
+      if(!m[3]&&!W[m[2]]) continue;           // lecture was un-marked
+      if(seen.has(r)) continue; seen.add(r);
+    }
+    keep.push(e);
+  }
+  keep.reverse();
+  Object.keys(P).forEach(k=>{ if(k.indexOf('0_')===0||seen.has('dt_'+k)) return;
+    const [l,pt]=k.split('_'), rec=P[k];
+    keep.push({date:fmtDK(rec.dateKey),dateKey:rec.dateKey,text:'DT · Lec '+l+' Pt.'+pt,hours:(rec.mins/60).toFixed(2),mins:rec.mins,type:'done',auto:true,ref:'dt_'+k}); });
+  const changed=keep.length!==S.log.length||keep.some((e,i)=>e!==S.log[i]);
+  if(changed) S.log.splice(0,S.log.length,...keep);
+  return changed;
+}
+function cleanLog(){ if(normalizeLog()) save(); }
 const DT_TOTAL_MIN=250*60;
 function dtMins(){ return Object.values(S.dtP||{}).reduce((a,x)=>a+(x.mins||0),0); }
 function migrateDT(){ // old manual DT hours -> one recorded entry
@@ -1493,6 +1519,7 @@ async function flush(){
   if(_flushing||!isDirty()) return true;
   _flushing=true; showSyncStatus('⟳ saving...','var(--amber)');
   try{
+    normalizeLog();
     const patch=buildPatch(_base,S);
     for(const k of Object.keys(patch)){
       if(Array.isArray(patch[k])){ // keep entries added from another device
@@ -1504,6 +1531,7 @@ async function flush(){
         }
       }
     }
+    if(normalizeLog()&&!patch.log) patch.log=S.log;
     const snap=clone(S);
     if(Object.keys(patch).length){
       const res=await fetch(FB_URL+FB_PATH,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(patch)});
@@ -1904,7 +1932,7 @@ function markLecDone(ctx, hrs){
   if(type==='fr'){ S.frW[k]=true; delete S.frIP[k]; delete S.frIPHrs[k]; }
   else { S.afmW[k]=true; delete S.afmIP[k]; delete S.afmIPHrs[k]; }
   // Auto-log activity
-  autoLogActivity(label, 'done', hrs?Math.round(hrs*60):getDurFromKey(type,k));
+  autoLogActivity(label, 'done', hrs?Math.round(hrs*60):getDurFromKey(type,k), type+':'+k);
   save();
   type==='fr'?renderFRChs():renderAFMChs();
   updateStats(); renderOverviews(); renderSG('sg-dash'); renderPace();
@@ -1915,7 +1943,7 @@ function markLecProgress(ctx, hrs){
   if(type==='fr'){ S.frIP[k]=true; if(hrs) S.frIPHrs[k]=hrs; }
   else { S.afmIP[k]=true; if(hrs) S.afmIPHrs[k]=hrs; }
   // Auto-log activity
-  autoLogActivity(label, 'progress', hrs?Math.round(hrs*60):0);
+  autoLogActivity(label, 'progress', hrs?Math.round(hrs*60):0, type+':'+k+':ip');
   save();
   type==='fr'?renderFRChs():renderAFMChs();
   updateStats(); renderStreak(); renderHeatmap(); renderTodayFeed();
@@ -1934,7 +1962,8 @@ function getDurFromKey(type, k){ // returns minutes
   return 0;
 }
 
-function autoLogActivity(label, result, hrs){
+function autoLogActivity(label, result, hrs, ref){
+  if(ref) S.log=S.log.filter(e=>e.ref!==ref);
   const date = new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'});
   const time = new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'});
   S.log.push({
@@ -1942,7 +1971,7 @@ function autoLogActivity(label, result, hrs){
     text: label,
     hours: hrs?(hrs/60).toFixed(2):'', mins: hrs||0,
     type: result, // 'done' | 'progress' | 'manual'
-    auto: true
+    auto: true, ref: ref||undefined
   });
   // Also update streak days
   try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(S)); }catch(e){}
@@ -2129,7 +2158,7 @@ function renderLog(cid){
   if(wrap){ wrap.style.display=hist.length>LIMIT||_logShowAll?'block':'none'; }
   if(btn){ btn.textContent=_logShowAll?'COLLAPSE':'SEE EARLIER ('+hist.length+' entries)'; }
 }
-function delLog(i){ if(!S.log[i]||!confirm('Delete this log entry?')) return; S.log.splice(i,1); save(); renderLog('le2'); renderLog('le1'); renderTodayFeed(); renderDashTodayFeed(); renderHeatmap(); renderStreak(); }
+function delLog(i){ if(!S.log[i]||!confirm('Delete this log entry?')) return; const _r=S.log[i].ref; if(typeof _r==='string'&&_r.indexOf('dt_')===0) delete (S.dtP||{})[_r.slice(3)]; S.log.splice(i,1); save(); renderLog('le2'); renderLog('le1'); renderTodayFeed(); renderDashTodayFeed(); renderHeatmap(); renderStreak(); }
 function addBackfill(){
   const f=document.getElementById('bf-from').value;
   const mins=Math.round((parseFloat(document.getElementById('bf-h').value)||0)*60)+(parseInt(document.getElementById('bf-m').value)||0);
@@ -2595,7 +2624,7 @@ function renderWeakSection(){
 // ═══════════════════════════════════════════════
 async function init(){
   await loadState();
-  pruneOldAfm(); migrateDT(); migrateDTParts();
+  pruneOldAfm(); migrateDT(); migrateDTParts(); cleanLog();
   updateCountdowns();
   populateTestSel();
   renderSG('sg-dash');
@@ -2622,7 +2651,7 @@ async function init(){
   // Poll every 30s (skipped while there are unsynced local changes)
   setInterval(async ()=>{
     if(isDirty()||_flushing) return;
-    await loadState(); migrateDTParts();
+    await loadState(); migrateDTParts(); cleanLog();
     renderSG('sg-dash'); updateStats(); renderStreak(); renderHeatmap();
     renderTarget(); renderPace(); renderWeakSection(); renderDashTodayFeed(); renderTodayFeed();
     if(document.getElementById('tab-schedule').classList.contains('active')){renderFRChs();renderAFMChs();}
