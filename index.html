@@ -1049,17 +1049,16 @@ input.t-in  { width:62px; }
   <!-- DIRECT TAX -->
   <div class="sub-pane" id="sub-dt">
     <div class="sch-stats-sticky">
-      <div style="font-size:10px;color:var(--text2);font-family:'JetBrains Mono',monospace;letter-spacing:1px;margin-bottom:8px;">~250 Hours · Paper 4 · 81 lectures · 2 parts each · enter your time per part and mark it done · exact durations get matched when the full list arrives</div>
+      <div style="font-size:10px;color:var(--text2);font-family:'JetBrains Mono',monospace;letter-spacing:1px;margin-bottom:8px;">Paper 4 · 88 days · 181 parts · 260h 36m · tap a part to mark it done</div>
       <div class="sch-stats">
-        <div class="sstat"><div class="sstat-v" id="dt-n">0</div><div class="sstat-l">LECTURES</div></div>
+        <div class="sstat"><div class="sstat-v" id="dt-n">0</div><div class="sstat-l">PARTS DONE</div></div>
         <div class="sstat"><div class="sstat-v" id="dt-pct">0%</div><div class="sstat-l">COMPLETE</div></div>
         <div class="sstat"><div class="sstat-v" id="dt-hw">0m</div><div class="sstat-l">HRS DONE</div></div>
         <div class="sstat"><div class="sstat-v" id="dt-hl">250h</div><div class="sstat-l">HRS LEFT</div></div>
       </div>
     </div>
-    <div class="sec" style="margin-top:12px;">DT LECTURES</div>
-    <div style="font-size:9px;color:var(--text2);font-family:'JetBrains Mono',monospace;margin-bottom:8px;line-height:1.5;">Enter your time for a part and press DONE. The date next to each part is today unless you change it, and it goes back to today every time.</div>
-    <div class="log-panel"><div id="dt-list" style="max-height:560px;overflow-y:auto;"></div></div>
+    <div class="sec" style="margin-top:12px;">DT SCHEDULE</div>
+    <div id="dt-list"></div>
   </div>
 
   <!-- IDT -->
@@ -1241,6 +1240,11 @@ input.t-in  { width:62px; }
     <div class="comp-modal-lec" id="comp-modal-lec-label">FR · Ind AS 116 Lec 47 Pt. 1</div>
     <div class="comp-modal-body">
       <div style="font-size:10px;color:var(--text2);font-family:'JetBrains Mono',monospace;margin-bottom:12px;letter-spacing:1px;">HOW DID IT GO?</div>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+        <span style="font-size:10px;color:var(--text2);font-family:'JetBrains Mono',monospace;letter-spacing:1px;">DATE STUDIED</span>
+        <input id="comp-date" type="date" style="background:#1a1d30;border:1px solid var(--border);color:var(--text);font-family:'JetBrains Mono',monospace;font-size:12px;padding:7px;outline:none;color-scheme:dark;"/>
+        <span style="font-size:9px;color:var(--muted);font-family:'JetBrains Mono',monospace;">today unless changed</span>
+      </div>
       <div class="comp-btn-row">
         <button class="comp-done-btn" onclick="confirmComp('done')">✓ FULLY DONE</button>
         <button class="comp-prog-btn" onclick="confirmComp('progress')">⟳ IN PROGRESS</button>
@@ -1369,7 +1373,8 @@ function normalizeLog(){
       const rec=P[r.slice(3)];
       if(!rec||seen.has(r)||e.mins!==rec.mins||e.dateKey!==rec.dateKey) continue;
       seen.add(r);
-    } else if(e.auto&&typeof e.text==='string'&&e.text.indexOf('DT · ')===0){ continue; } // old-style DT line (replaced by per-part lines)
+    } else if(typeof r==='string'&&r.indexOf('dtip:')===0){ if(seen.has(r)) continue; seen.add(r); }
+    else if(e.auto&&typeof e.text==='string'&&e.text.indexOf('DT · ')===0){ continue; } // old-style DT line (replaced by per-part lines)
     else if(typeof r==='string'&&/^(fr|afm):/.test(r)){
       const m=r.match(/^(fr|afm):(.+?)(:ip)?$/), W=S[m[1]+'W']||{};
       if(!m[3]&&!W[m[2]]) continue;           // lecture was un-marked
@@ -1386,20 +1391,24 @@ function normalizeLog(){
   return changed;
 }
 function cleanLog(){ if(normalizeLog()) save(); }
-const DT_TOTAL_MIN=250*60;
-function dtMins(){ return Object.values(S.dtP||{}).reduce((a,x)=>a+(x.mins||0),0); }
+const DT_SCHED=[[1,1,"Basics",108],[1,2,"Basics",61],[2,1,"Basics",84],[2,2,"Basics",78],[3,1,"Basics",83],[3,2,"Basics",83],[4,1,"Basics & Tax Rates",91],[4,2,"Basics & Tax Rates",81],[5,1,"Agriculture Income And Tax Rate",94],[5,2,"Agriculture Income And Tax Rate",73],[6,1,"House Property and Exempt Income",97],[6,2,"House Property and Exempt Income",62],[7,1,"Capital Gains",76],[7,2,"Capital Gains",84],[8,1,"Capital Gains",93],[8,2,"Capital Gains",75],[9,1,"Capital Gains",98],[9,2,"Capital Gains",67],[10,1,"Capital Gains",107],[10,2,"Capital Gains",61],[11,1,"Capital Gains",83],[11,2,"Capital Gains",88],[12,1,"Capital Gains",93],[12,2,"Capital Gains",76],[13,1,"Capital Gains",85],[13,2,"Capital Gains",82],[14,1,"Capital Gains",88],[14,2,"Capital Gains",82],[15,1,"Capital Gains",110],[15,2,"Capital Gains",55],[16,1,"Capital Gains",78],[16,2,"Capital Gains",92],[17,1,"Capital Gains",98],[17,2,"Capital Gains",71],[18,1,"IFOS",85],[18,2,"IFOS",82],[19,1,"IFOS",88],[19,2,"IFOS",80],[20,1,"IFOS",87],[20,2,"IFOS",72],[21,1,"IFOS",100],[21,2,"IFOS",61],[22,1,"IFOS",88],[22,2,"IFOS",72],[23,1,"PGBP",89],[23,2,"PGBP",78],[24,1,"PGBP",82],[24,2,"PGBP",77],[25,1,"PGBP",93],[25,2,"PGBP",68],[26,1,"PGBP",99],[26,2,"PGBP",64],[27,1,"PGBP",85],[27,2,"PGBP",68],[28,1,"PGBP",104],[28,2,"PGBP",64],[29,1,"PGBP",92],[29,2,"PGBP",65],[30,1,"PGBP",95],[30,2,"PGBP",68],[31,1,"PGBP",79],[31,2,"PGBP",112],[32,1,"PGBP",100],[32,2,"PGBP",68],[33,1,"PGBP",79],[33,2,"PGBP",90],[34,1,"PGBP",91],[34,2,"PGBP",103],[35,1,"PGBP",100],[35,2,"PGBP",75],[36,1,"PGBP",103],[36,2,"PGBP",102],[37,1,"PGBP",83],[37,2,"Capital Gain Pending Question",87],[38,1,"Taxation on Political Parties",72],[38,2,"Taxation of Firm and LLP",95],[39,1,"Taxation of Firm and LLP",84],[39,2,"LLP and ICDS",74],[40,1,"AOP BOI",100],[40,2,"AOP BOI",70],[40,3,"ICDS",44],[41,1,"Clubbing of Income",134],[41,2,"Setoff Carry Forward",54],[42,1,"Setoff Carry Forward",86],[42,2,"Setoff Carry Forward",83],[43,1,"Deduction",90],[43,2,"Deduction",80],[44,1,"Deduction",89],[44,2,"Deduction",77],[45,1,"SEZ and AMT",108],[45,2,"SEZ and AMT",67],[46,1,"Deduction AMT",78],[46,2,"MAT",83],[47,1,"MAT",92],[47,2,"MAT",78],[48,1,"MAT",68],[48,2,"New Tax Regime",109],[49,1,"New Tax Regime",96],[49,2,"Co-operative Society",69],[50,1,"Business Trust",97],[50,2,"Investment Funds",59],[50,3,"Business Trust",18],[51,1,"Securitisation Trust and Taxation of NPO",75],[51,2,"Taxation of NPO",83],[52,1,"Taxation of NPO",96],[52,2,"Taxation of NPO",82],[53,1,"Taxation of NPO",101],[53,2,"Taxation of NPO",81],[54,1,"Taxation of NPO",97],[54,2,"Taxation of NPO",82],[55,1,"Taxation of NPO",91],[55,2,"DTAA",91],[56,1,"DTAA",83],[56,2,"DTAA",98],[57,1,"Transfer Pricing",115],[57,2,"Transfer Pricing",57],[58,1,"Transfer Pricing",82],[58,2,"Transfer Pricing",74],[59,1,"Transfer Pricing",92],[59,2,"Transfer Pricing",87],[60,1,"Transfer Pricing",99],[60,2,"Transfer Pricing",82],[61,1,"Transfer Pricing",101],[61,2,"Transfer Pricing",67],[62,1,"Return Filing and Assessment Procedure",94],[62,2,"Return Filing and Assessment Procedure",78],[63,1,"Return Filing and Assessment Procedure",92],[63,2,"Return Filing and Assessment Procedure",85],[64,1,"Income Tax Authorities",96],[64,2,"Income Tax Authorities",77],[65,1,"Income Tax Authorities",106],[65,2,"Income Tax Authorities",66],[66,1,"Income Tax Authorities",83],[66,2,"Assessment Procedure",96],[67,1,"Assessment Procedure",97],[67,2,"Assessment Procedure",88],[68,1,"Assessment Procedure",91],[68,2,"VDA",81],[69,1,"Assessment Procedure",91],[69,2,"Assessment Procedure",82],[70,1,"Adv Tax",106],[70,2,"Return Filing",80],[71,1,"Return Filing and Advance Ruling",94],[71,2,"DRC",82],[72,1,"Return Filing",90],[72,2,"Tonnage Taxation",87],[73,1,"GAAR",87],[73,2,"GAAR",123],[74,1,"Appeals and Revision",94],[74,2,"Appeals and Revision",87],[75,1,"Appeals and Revision",90],[75,2,"Misc",92],[76,1,"Misc",105],[76,2,"Penalties and Prosecution",111],[76,3,"Remaining Part Assessment Procedure",121],[77,1,"Non Resident Taxation",95],[77,2,"Non Resident Taxation",79],[78,1,"Non Resident Taxation",98],[78,2,"Non Resident Taxation",79],[79,1,"Non Resident Taxation",95],[79,2,"Non Resident Taxation",79],[80,1,"Non Resident Taxation",87],[80,2,"Non Resident Taxation",95],[81,1,"TDS TCS",109],[81,2,"TDS TCS",73],[82,1,"TDS TCS",96],[82,2,"TDS TCS",142],[83,1,"TDS TCS",110],[83,2,"TDS TCS",94],[84,1,"TDS TCS",101],[84,2,"TDS TCS",82],[85,1,"TDS TCS",73],[85,2,"TDS TCS",99],[85,3,"Non Resident Taxation",106],[86,1,"Black Money",114],[86,2,"Black Money and Tax Audit",51],[87,1,"Tax Audit",108],[87,2,"Tax Audit",44],[87,3,"Remaining Concepts",81],[88,1,"BEPS",121],[88,2,"BEPS and Motivation",88]]; // [day, part, topic, minutes]
+const DT_DUR={}, DT_TOPIC={}; DT_SCHED.forEach(r=>{ DT_DUR[r[0]+'_'+r[1]]=r[3]; DT_TOPIC[r[0]+'_'+r[1]]=r[2]; });
+const DT_CHAPTERS=[]; DT_SCHED.forEach(r=>{ let c=DT_CHAPTERS[DT_CHAPTERS.length-1]; if(!c||c.name!==r[2]){ c={name:r[2],parts:[]}; DT_CHAPTERS.push(c); } c.parts.push({day:r[0],p:r[1],mins:r[3],k:r[0]+'_'+r[1]}); });
+const DT_TOTAL_MIN=DT_SCHED.reduce((a,r)=>a+r[3],0);
+
+function dtMins(){ const P=S.dtP||{}; return Object.keys(P).reduce((a,k)=>a+(DT_DUR[k]!=null?DT_DUR[k]:(P[k].mins||0)),0); } // done = scheduled length of each finished part
 function migrateDT(){ // old manual DT hours -> one recorded entry
   const h=S.hours&&S.hours.dt;
   if(h>0&&!(S.dtLecs||[]).length&&!Object.keys(S.dtP||{}).length){ S.dtLecs=[{id:Date.now(),l:0,mins:Math.round(h*60),dateKey:todayStr()}]; S.hours.dt=0; save(); }
 }
-const DT_COUNT=81;
-const SUB_TOTAL_H={dt:250,idt:140,audit:150,ibs:100};
+const SUB_TOTAL_H={dt:Math.round(DT_TOTAL_MIN/60),idt:140,audit:150,ibs:100};
 const SUBCODE={fr:'FR',afm:'AFM',dt:'DT',idt:'IDT',audit:'AUDIT',ibs:'IBS'};
 function subLogMins(id,dk){ const pre=SUBCODE[id]+' · '; return S.log.reduce((a,e)=>a+(((e.text||'').indexOf(pre)===0&&(!dk||e.dateKey===dk))?entMins(e):0),0); }
 function subAvg7(id){ let m=0; const d=new Date(); for(let i=0;i<7;i++){ m+=subLogMins(id,dKey(d)); d.setDate(d.getDate()-1); } return m/7; }
 function subTotals(id){
   if(id==='fr'){ const f=getFRStats(); return {done:f.wm,total:f.tm}; }
   if(id==='afm'){ const a=getAFMStats(); return {done:a.wm,total:a.tm}; }
+  if(id==='dt') return {done:dtMins(),total:DT_TOTAL_MIN};
   return {done:Math.round(getSubjectHours(id)*60),total:SUB_TOTAL_H[id]*60};
 }
 function addSubTime(id){
@@ -1421,38 +1430,66 @@ function migrateDTParts(){ // old list-style DT entries -> one record per part; 
   });
   S.dtLecs=[]; save();
 }
+let _dtOpen=null;
+function toggleDTCh(i){ const b=document.getElementById('dtc-b-'+i); if(!b) return; const open=b.style.display==='none'; b.style.display=open?'block':'none'; if(open) _dtOpen.add(i); else _dtOpen.delete(i); }
 function renderDT(){
   const set=(id,v)=>{const e=document.getElementById(id); if(e) e.textContent=v;};
-  const P=S.dtP||{}, m=dtMins(), keys=Object.keys(P);
-  let full=0; for(let l=1;l<=DT_COUNT;l++) if(P[l+'_1']&&P[l+'_2']) full++;
-  set('dt-n',full+'/'+DT_COUNT);
+  const P=S.dtP||{}, IP=S.dtIP||{}, m=dtMins();
+  set('dt-n',DT_SCHED.filter(r=>P[r[0]+'_'+r[1]]).length+'/'+DT_SCHED.length);
   set('dt-pct',Math.min(100,Math.round(m/DT_TOTAL_MIN*100))+'%');
   set('dt-hw',fmtMin(m)); set('dt-hl',fmtMin(Math.max(0,DT_TOTAL_MIN-m)));
   const c=document.getElementById('dt-list'); if(!c) return;
-  const top=c.scrollTop, t=todayStr(), N=Math.max(DT_COUNT,...keys.map(k=>+k.split('_')[0])), fs="background:#1a1d30;border:1px solid var(--border);color:var(--text);font-family:'JetBrains Mono',monospace;font-size:11px;padding:5px;outline:none;color-scheme:dark;";
+  if(!_dtOpen){ _dtOpen=new Set(); const i=DT_CHAPTERS.findIndex(ch=>ch.parts.some(x=>!P[x.k])); _dtOpen.add(i<0?0:i); }
   let h='';
   if(P['0_1']) h+='<div class="log-entry lec-done"><div class="log-date">Earlier</div><div class="log-txt" style="flex:1;">Hours added before lecture tracking</div><div class="log-htag">'+fmtMin(P['0_1'].mins)+'</div><button class="bbtn" style="padding:2px 8px;" onclick="delDT(0,1)">✕</button></div>';
-  for(let l=1;l<=N;l++) for(let p=1;p<=2;p++){
-    const k=l+'_'+p, bd=p===1?'border-top:1px solid var(--border);':'';
-    if(P[k]){
-      h+='<div class="log-entry lec-done" style="'+bd+'"><div class="log-date">Lec '+l+' · Pt.'+p+'</div><div class="log-txt" style="flex:1;">✓ '+esc(P[k].dateKey?fmtDK(P[k].dateKey):'')+'</div><div class="log-htag">'+fmtMin(P[k].mins)+'</div><button class="bbtn" style="padding:2px 8px;" title="Undo" onclick="delDT('+l+','+p+')">✕</button></div>';
-    } else {
-      h+='<div class="log-entry manual" style="align-items:center;flex-wrap:wrap;gap:6px;'+bd+'"><div class="log-date">Lec '+l+' · Pt.'+p+'</div><div style="flex:1;"></div><input id="dth-'+k+'" type="number" min="0" max="24" step="any" placeholder="hrs" style="'+fs+'width:52px;text-align:center;"/><input id="dtm-'+k+'" type="number" min="0" max="59" placeholder="min" style="'+fs+'width:52px;text-align:center;"/><input id="dtd-'+k+'" type="date" value="'+t+'" data-t="'+t+'" max="'+t+'" title="Date done (defaults to today)" style="'+fs+'font-size:10px;"/><button class="bbtn" style="padding:5px 10px;" onclick="addDT('+l+','+p+')">DONE</button></div>';
-    }
-  }
-  c.innerHTML=h; c.scrollTop=top;
+  DT_CHAPTERS.forEach((ch,i)=>{
+    const tot=ch.parts.reduce((a,x)=>a+x.mins,0), dn=ch.parts.filter(x=>P[x.k]), dm=dn.reduce((a,x)=>a+x.mins,0), pct=Math.round(dm/tot*100);
+    h+='<div style="border:1px solid var(--border);border-radius:4px;margin-bottom:8px;overflow:hidden;">'
+      +'<div onclick="toggleDTCh('+i+')" style="cursor:pointer;display:flex;align-items:center;gap:10px;padding:10px 12px;flex-wrap:wrap;">'
+      +'<div style="flex:1;min-width:160px;"><div style="font-size:13px;font-weight:600;color:var(--text);">'+esc(ch.name)+'</div><div style="font-size:9px;color:var(--text2);font-family:\'JetBrains Mono\',monospace;">DAY '+ch.parts[0].day+(ch.parts[ch.parts.length-1].day!==ch.parts[0].day?'–'+ch.parts[ch.parts.length-1].day:'')+' · '+ch.parts.length+' PARTS · '+fmtMin(tot)+'</div></div>'
+      +'<div style="width:90px;height:5px;background:#1a1d30;border-radius:3px;overflow:hidden;"><div style="width:'+pct+'%;height:100%;background:var(--green);"></div></div>'
+      +'<div style="font-size:11px;font-family:\'JetBrains Mono\',monospace;color:var(--text2);min-width:70px;text-align:right;">'+dn.length+'/'+ch.parts.length+' · '+pct+'%</div></div>'
+      +'<div id="dtc-b-'+i+'" style="display:'+(_dtOpen.has(i)?'block':'none')+';">';
+    ch.parts.forEach(x=>{
+      const rec=P[x.k], ip=IP[x.k]&&!rec;
+      h+='<div class="log-entry '+(rec?'lec-done':'manual')+'" style="cursor:pointer;align-items:center;border-top:1px solid var(--border);" onclick="openDTModal(\''+x.k+'\',event)"><div class="log-date">Day '+x.day+' · Pt.'+x.p+'</div><div class="log-txt" style="flex:1;">'+(rec?'✓ '+esc(rec.dateKey?fmtDK(rec.dateKey):''):ip?'⟳ in progress':'')+'</div><div class="log-htag">'+fmtMin(x.mins)+'</div></div>';
+    });
+    h+='</div></div>';
+  });
+  c.innerHTML=h;
 }
 function dtRefresh(){ save(); renderDT(); updateStats(); renderSG('sg-dash'); renderPace(); renderStreak(); renderHeatmap(); renderTodayFeed(); renderDashTodayFeed(); }
-function addDT(l,p){
-  const k=l+'_'+p;
-  const mins=Math.round((parseFloat(document.getElementById('dth-'+k).value)||0)*60)+(parseInt(document.getElementById('dtm-'+k).value)||0);
-  const di=document.getElementById('dtd-'+k), dk=(!di.value||di.value===di.dataset.t)?todayStr():di.value; // untouched date = today
-  if(!mins){alert('Enter the time you took (hours and/or minutes)'); return;}
-  if(dk>todayStr()){alert('Pick today or an earlier date'); return;}
-  S.dtP=S.dtP||{}; const ref='dt_'+k;
-  S.log=S.log.filter(e=>e.ref!==ref);
-  S.dtP[k]={mins,dateKey:dk,ref};
-  S.log.push({date:fmtDK(dk),dateKey:dk,time:dk===todayStr()?new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}):'',text:'DT · Lec '+l+' Pt.'+p,hours:(mins/60).toFixed(2),mins,type:'done',auto:true,ref});
+function openDTModal(k,e){
+  if(e) e.stopPropagation();
+  const [d,p]=k.split('_').map(Number);
+  if((S.dtP||{})[k]){ // tap a finished part again to undo it
+    if(!confirm('Undo DT Day '+d+' Pt.'+p+'?')) return;
+    delete S.dtP[k]; S.log=S.log.filter(x=>x.ref!=='dt_'+k); dtRefresh(); return;
+  }
+  const label='DT · Day '+d+' Pt.'+p+' — '+DT_TOPIC[k]+' ('+fmtMin(DT_DUR[k])+')';
+  _compCtx={type:'dt',k,d,p,label,pref:window._prefHrs||null}; window._prefHrs=null;
+  document.getElementById('comp-modal-lec-label').textContent=label;
+  { const di=document.getElementById('comp-date'); di.value=todayStr(); di.dataset.t=todayStr(); di.max=todayStr(); }
+  document.getElementById('comp-hrs-row').classList.remove('show');
+  document.getElementById('comp-hrs-in').value=_compCtx.pref||'';
+  document.getElementById('comp-modal').classList.add('show');
+}
+function dtLogLine(ctx,mins,type,ref){
+  const dk=ctx.dk||todayStr();
+  return {date:fmtDK(dk),dateKey:dk,time:dk===todayStr()?new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}):'',text:'DT · Lec '+ctx.d+' Pt.'+ctx.p,hours:mins?(mins/60).toFixed(2):'',mins:mins||0,type,auto:true,ref};
+}
+function markDTDone(ctx,hrs){
+  const k=ctx.k, mins=hrs?Math.round(hrs*60):DT_DUR[k], dk=ctx.dk||todayStr();
+  S.dtP=S.dtP||{}; S.dtIP=S.dtIP||{};
+  S.dtP[k]={mins,dateKey:dk,ref:'dt_'+k}; delete S.dtIP[k];
+  S.log=S.log.filter(e=>e.ref!=='dt_'+k&&e.ref!=='dtip:'+k);
+  S.log.push(dtLogLine(ctx,mins,'done','dt_'+k));
+  dtRefresh();
+}
+function markDTProgress(ctx,hrs){
+  const k=ctx.k; S.dtIP=S.dtIP||{}; S.dtIP[k]=true;
+  S.log=S.log.filter(e=>e.ref!=='dtip:'+k);
+  S.log.push(dtLogLine(ctx,hrs?Math.round(hrs*60):0,'progress','dtip:'+k));
   dtRefresh();
 }
 function delDT(l,p){
@@ -1477,7 +1514,7 @@ function pruneOldAfm(){ // drop progress keys from the old AFM syllabus
 const FB_URL = 'https://ca-sept-2027-default-rtdb.asia-southeast1.firebasedatabase.app';
 const FB_PATH = '/warroom/state.json';
 const STORAGE_KEY = 'ca_wr_v5';
-const DEFAULT_STATE = {hours:{},topics:[],tests:[],revisions:{},log:[],frW:{},frN:{},frT:{},afmW:{},afmN:{},frIP:{},afmIP:{},frIPHrs:{},afmIPHrs:{},spom:{},aicitss:false,frFlag:{},afmFlag:{},targets:[],dtLecs:[],dtP:{},streak:{cur:0,best:0,lastDate:''}};
+const DEFAULT_STATE = {hours:{},topics:[],tests:[],revisions:{},log:[],frW:{},frN:{},frT:{},afmW:{},afmN:{},frIP:{},afmIP:{},frIPHrs:{},afmIPHrs:{},spom:{},aicitss:false,frFlag:{},afmFlag:{},targets:[],dtLecs:[],dtP:{},dtIP:{},streak:{cur:0,best:0,lastDate:''}};
 
 const clone=o=>JSON.parse(JSON.stringify(o));
 let S = clone(DEFAULT_STATE);
@@ -1728,7 +1765,7 @@ function getSubjectProgress(subId){
   }
   // Other subjects — manual hours based
   const h=getSubjectHours(subId);
-  const total = subId==='dt'?250:subId==='idt'?140:subId==='audit'?150:100;
+  const total = subId==='dt'?Math.round(DT_TOTAL_MIN/60):subId==='idt'?140:subId==='audit'?150:100;
   const pct = Math.min(100,Math.round(h/total*100));
   return {done:null, total, pct};
 }
@@ -1902,6 +1939,7 @@ function openCompModal(type,chId,l,p,label,e){
   }
   _compCtx = {type,chId,l,p,label,k,pref:window._prefHrs||null}; window._prefHrs=null;
   document.getElementById('comp-modal-lec-label').textContent = label;
+  { const di=document.getElementById('comp-date'); di.value=todayStr(); di.dataset.t=todayStr(); di.max=todayStr(); }
   document.getElementById('comp-hrs-row').classList.remove('show');
   document.getElementById('comp-hrs-in').value=_compCtx.pref||'';
   document.getElementById('comp-modal').classList.add('show');
@@ -1910,10 +1948,12 @@ function closeCompModal(){ document.getElementById('comp-modal').classList.remov
 function closeCompHrs(){ document.getElementById('comp-hrs-row').classList.remove('show'); }
 document.getElementById('comp-modal').addEventListener('click',function(e){ if(e.target===this)closeCompModal(); });
 
+function compDate(){ const di=document.getElementById('comp-date'); return (!di.value||di.value===di.dataset.t)?todayStr():(di.value>todayStr()?todayStr():di.value); }
 function confirmComp(result){
   if(!_compCtx) return;
   if(result==='done'){
-    markLecDone(_compCtx, _compCtx.pref);
+    _compCtx.dk=compDate();
+    (_compCtx.type==='dt'?markDTDone:markLecDone)(_compCtx, _compCtx.pref);
     closeCompModal();
   } else {
     document.getElementById('comp-hrs-row').classList.add('show');
@@ -1923,7 +1963,8 @@ function confirmComp(result){
 function confirmProgSave(){
   if(!_compCtx) return;
   const hrs = parseFloat(document.getElementById('comp-hrs-in').value)||0;
-  markLecProgress(_compCtx, hrs);
+  _compCtx.dk=compDate();
+  (_compCtx.type==='dt'?markDTProgress:markLecProgress)(_compCtx, hrs);
   closeCompModal();
 }
 
@@ -1932,7 +1973,7 @@ function markLecDone(ctx, hrs){
   if(type==='fr'){ S.frW[k]=true; delete S.frIP[k]; delete S.frIPHrs[k]; }
   else { S.afmW[k]=true; delete S.afmIP[k]; delete S.afmIPHrs[k]; }
   // Auto-log activity
-  autoLogActivity(label, 'done', hrs?Math.round(hrs*60):getDurFromKey(type,k), type+':'+k);
+  autoLogActivity(label, 'done', hrs?Math.round(hrs*60):getDurFromKey(type,k), type+':'+k, ctx.dk);
   save();
   type==='fr'?renderFRChs():renderAFMChs();
   updateStats(); renderOverviews(); renderSG('sg-dash'); renderPace();
@@ -1943,7 +1984,7 @@ function markLecProgress(ctx, hrs){
   if(type==='fr'){ S.frIP[k]=true; if(hrs) S.frIPHrs[k]=hrs; }
   else { S.afmIP[k]=true; if(hrs) S.afmIPHrs[k]=hrs; }
   // Auto-log activity
-  autoLogActivity(label, 'progress', hrs?Math.round(hrs*60):0, type+':'+k+':ip');
+  autoLogActivity(label, 'progress', hrs?Math.round(hrs*60):0, type+':'+k+':ip', ctx.dk);
   save();
   type==='fr'?renderFRChs():renderAFMChs();
   updateStats(); renderStreak(); renderHeatmap(); renderTodayFeed();
@@ -1962,12 +2003,13 @@ function getDurFromKey(type, k){ // returns minutes
   return 0;
 }
 
-function autoLogActivity(label, result, hrs, ref){
+function autoLogActivity(label, result, hrs, ref, dk){
+  dk=dk||todayStr();
   if(ref) S.log=S.log.filter(e=>e.ref!==ref);
-  const date = new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'});
-  const time = new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'});
+  const date = parseKey(dk).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'});
+  const time = dk===todayStr()?new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}):'';
   S.log.push({
-    date, dateKey:todayStr(), time,
+    date, dateKey:dk, time,
     text: label,
     hours: hrs?(hrs/60).toFixed(2):'', mins: hrs||0,
     type: result, // 'done' | 'progress' | 'manual'
@@ -2556,7 +2598,7 @@ function renderPace(){
     let extra='';
     if(id==='fr'){ const f=getFRStats(); extra=' · '+f.w+'/'+f.tot+' parts'; }
     else if(id==='afm'){ const a=getAFMStats(); extra=' · '+a.w+'/'+a.tot+' lectures'; }
-    else if(id==='dt'){ extra=' · '+Object.keys(S.dtP||{}).filter(k=>k.indexOf('0_')!==0).length+'/'+(DT_COUNT*2)+' parts'; }
+    else if(id==='dt'){ extra=' · '+Object.keys(S.dtP||{}).filter(k=>k.indexOf('0_')!==0).length+'/'+DT_SCHED.length+' parts'; }
     const needC=cls(need/60,2,4);
     const logBox=(id==='idt'||id==='audit'||id==='ibs')
       ? `<div style="margin-top:6px;display:flex;gap:4px;align-items:center;"><input id="st-h-${id}" type="number" min="0" placeholder="h" style="${inp}"/><input id="st-m-${id}" type="number" min="0" max="59" placeholder="m" style="${inp}"/><button class="bbtn" style="padding:3px 8px;" onclick="addSubTime('${id}')">+ LOG</button></div>`
