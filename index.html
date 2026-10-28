@@ -1049,16 +1049,26 @@ input.t-in  { width:62px; }
   <!-- DIRECT TAX -->
   <div class="sub-pane" id="sub-dt">
     <div class="sch-stats-sticky">
-      <div style="font-size:10px;color:var(--text2);font-family:'JetBrains Mono',monospace;letter-spacing:1px;margin-bottom:8px;">Paper 4 · 88 days · 181 parts · 260h 36m · tap a part to mark it done</div>
-      <div class="sch-stats">
-        <div class="sstat"><div class="sstat-v" id="dt-n">0</div><div class="sstat-l">PARTS DONE</div></div>
-        <div class="sstat"><div class="sstat-v" id="dt-pct">0%</div><div class="sstat-l">COMPLETE</div></div>
-        <div class="sstat"><div class="sstat-v" id="dt-hw">0m</div><div class="sstat-l">HRS DONE</div></div>
-        <div class="sstat"><div class="sstat-v" id="dt-hl">250h</div><div class="sstat-l">HRS LEFT</div></div>
-      </div>
+    <div style="font-size:10px;color:var(--text2);font-family:'JetBrains Mono',monospace;letter-spacing:1px;margin-bottom:8px;">88 Days · 181 Parts · 260h 36m · Deadline: Jan 20 2027</div>
+    <div class="sch-stats">
+      <div class="sstat"><div class="sstat-v" id="dt-w">0</div><div class="sstat-l">WATCHED</div></div>
+      <div class="sstat"><div class="sstat-v" id="dt-n">0</div><div class="sstat-l">NOTED</div></div>
+      <div class="sstat"><div class="sstat-v" id="dt-pct">0%</div><div class="sstat-l">COMPLETE</div></div>
+      <div class="sstat"><div class="sstat-v" id="dt-hw">0h</div><div class="sstat-l">HRS DONE</div></div>
+      <div class="sstat"><div class="sstat-v" id="dt-hl">0h</div><div class="sstat-l">HRS LEFT</div></div>
     </div>
-    <div class="sec" style="margin-top:12px;">DT SCHEDULE</div>
-    <div id="dt-list"></div>
+    </div><!-- end sch-stats-sticky -->
+    <div class="sec" style="margin-top:14px;">CHAPTERS</div>
+    <div class="bulk-bar">
+      <span class="bulk-bar-label">BULK MARK:</span>
+      <span class="bulk-count" id="dt-sc">0</span>
+      <span class="bulk-bar-label">selected</span>
+      <button class="bbtn" onclick="bulkMark('dt','w')">✓ MARK WATCHED</button>
+      <button class="bbtn" onclick="bulkMark('dt','n')">✓ MARK NOTED</button>
+      <button class="bbtn" onclick="clearSel('dt')">CLEAR</button>
+      <button class="bbtn" onclick="selAllOpen('dt')">SELECT ALL OPEN</button>
+    </div>
+    <div id="dt-chs"></div>
   </div>
 
   <!-- IDT -->
@@ -1189,7 +1199,7 @@ input.t-in  { width:62px; }
               <option value="">Subject...</option>
               <option value="fr">Financial Reporting</option>
               <option value="afm">Adv. Financial Mgmt</option>
-            </select>
+            <option value="dt">DT</option></select>
             <select id="log-lec-pick" style="flex:2;min-width:180px;background:#1a1d30;border:1px solid var(--border);color:var(--text);font-family:'JetBrains Mono',monospace;font-size:10px;padding:7px;outline:none;">
               <option value="">Pick lecture...</option>
             </select>
@@ -1366,26 +1376,17 @@ const AFM_CHAPTERS=AFM_RAW.map(r=>({id:r[0],no:r[1],name:r[2],lecs:r[3].split(' 
 AFM_CHAPTERS.forEach(c=>{c.cnt=c.lecs.length;c.mins=c.lecs.reduce((a,x)=>a+d2m(x.d),0);});
 // One log line per DT part / lecture: removes duplicates and stale lines (runs on load, sync and save)
 function normalizeLog(){
-  const P=S.dtP||{}, seen=new Set(), keep=[];
+  const seen=new Set(), keep=[];
   for(let i=S.log.length-1;i>=0;i--){ // newest first, so the latest line wins
     const e=S.log[i], r=e.ref;
-    if(typeof r==='string'&&r.indexOf('dt_')===0){
-      const rec=P[r.slice(3)];
-      if(!rec||seen.has(r)||e.mins!==rec.mins||e.dateKey!==rec.dateKey) continue;
-      seen.add(r);
-    } else if(typeof r==='string'&&r.indexOf('dtip:')===0){ if(seen.has(r)) continue; seen.add(r); }
-    else if(e.auto&&typeof e.text==='string'&&e.text.indexOf('DT · ')===0){ continue; } // old-style DT line (replaced by per-part lines)
-    else if(typeof r==='string'&&/^(fr|afm):/.test(r)){
-      const m=r.match(/^(fr|afm):(.+?)(:ip)?$/), W=S[m[1]+'W']||{};
-      if(!m[3]&&!W[m[2]]) continue;           // lecture was un-marked
-      if(seen.has(r)) continue; seen.add(r);
+    if(typeof r==='string'){
+      const m=r.match(/^(fr|afm|dt):(.+?)(:ip)?$/);
+      if(m){ const W=S[m[1]+'W']||{}; if(!m[3]&&!W[m[2]]) continue; if(seen.has(r)) continue; seen.add(r); }
+      else if(/^(dt_|dtip:)/.test(r)){ if(seen.has(r)) continue; seen.add(r); } // legacy DT lines, converted on load
     }
     keep.push(e);
   }
   keep.reverse();
-  Object.keys(P).forEach(k=>{ if(k.indexOf('0_')===0||seen.has('dt_'+k)) return;
-    const [l,pt]=k.split('_'), rec=P[k];
-    keep.push({date:fmtDK(rec.dateKey),dateKey:rec.dateKey,text:'DT · Lec '+l+' Pt.'+pt,hours:(rec.mins/60).toFixed(2),mins:rec.mins,type:'done',auto:true,ref:'dt_'+k}); });
   const changed=keep.length!==S.log.length||keep.some((e,i)=>e!==S.log[i]);
   if(changed) S.log.splice(0,S.log.length,...keep);
   return changed;
@@ -1396,7 +1397,7 @@ const DT_DUR={}, DT_TOPIC={}; DT_SCHED.forEach(r=>{ DT_DUR[r[0]+'_'+r[1]]=r[3]; 
 const DT_CHAPTERS=[]; DT_SCHED.forEach(r=>{ let c=DT_CHAPTERS[DT_CHAPTERS.length-1]; if(!c||c.name!==r[2]){ c={name:r[2],parts:[]}; DT_CHAPTERS.push(c); } c.parts.push({day:r[0],p:r[1],mins:r[3],k:r[0]+'_'+r[1]}); });
 const DT_TOTAL_MIN=DT_SCHED.reduce((a,r)=>a+r[3],0);
 
-function dtMins(){ const P=S.dtP||{}; return Object.keys(P).reduce((a,k)=>a+(DT_DUR[k]!=null?DT_DUR[k]:(P[k].mins||0)),0); } // done = scheduled length of each finished part
+function dtMins(){ const W=S.dtW||{}, E=(S.dtP||{})['0_1']; let m=E?(E.mins||0):0; Object.keys(W).forEach(k=>{ if(W[k]&&DT_DUR[k]!=null) m+=DT_DUR[k]; }); return m; } // done = scheduled length of each finished part
 function migrateDT(){ // old manual DT hours -> one recorded entry
   const h=S.hours&&S.hours.dt;
   if(h>0&&!(S.dtLecs||[]).length&&!Object.keys(S.dtP||{}).length){ S.dtLecs=[{id:Date.now(),l:0,mins:Math.round(h*60),dateKey:todayStr()}]; S.hours.dt=0; save(); }
@@ -1430,72 +1431,56 @@ function migrateDTParts(){ // old list-style DT entries -> one record per part; 
   });
   S.dtLecs=[]; save();
 }
-let _dtOpen=null;
-function toggleDTCh(i){ const b=document.getElementById('dtc-b-'+i); if(!b) return; const open=b.style.display==='none'; b.style.display=open?'block':'none'; if(open) _dtOpen.add(i); else _dtOpen.delete(i); }
-function renderDT(){
-  const set=(id,v)=>{const e=document.getElementById(id); if(e) e.textContent=v;};
-  const P=S.dtP||{}, IP=S.dtIP||{}, m=dtMins();
-  set('dt-n',DT_SCHED.filter(r=>P[r[0]+'_'+r[1]]).length+'/'+DT_SCHED.length);
-  set('dt-pct',Math.min(100,Math.round(m/DT_TOTAL_MIN*100))+'%');
-  set('dt-hw',fmtMin(m)); set('dt-hl',fmtMin(Math.max(0,DT_TOTAL_MIN-m)));
-  const c=document.getElementById('dt-list'); if(!c) return;
-  if(!_dtOpen){ _dtOpen=new Set(); const i=DT_CHAPTERS.findIndex(ch=>ch.parts.some(x=>!P[x.k])); _dtOpen.add(i<0?0:i); }
-  let h='';
-  if(P['0_1']) h+='<div class="log-entry lec-done"><div class="log-date">Earlier</div><div class="log-txt" style="flex:1;">Hours added before lecture tracking</div><div class="log-htag">'+fmtMin(P['0_1'].mins)+'</div><button class="bbtn" style="padding:2px 8px;" onclick="delDT(0,1)">✕</button></div>';
-  DT_CHAPTERS.forEach((ch,i)=>{
-    const tot=ch.parts.reduce((a,x)=>a+x.mins,0), dn=ch.parts.filter(x=>P[x.k]), dm=dn.reduce((a,x)=>a+x.mins,0), pct=Math.round(dm/tot*100);
-    h+='<div style="border:1px solid var(--border);border-radius:4px;margin-bottom:8px;overflow:hidden;">'
-      +'<div onclick="toggleDTCh('+i+')" style="cursor:pointer;display:flex;align-items:center;gap:10px;padding:10px 12px;flex-wrap:wrap;">'
-      +'<div style="flex:1;min-width:160px;"><div style="font-size:13px;font-weight:600;color:var(--text);">'+esc(ch.name)+'</div><div style="font-size:9px;color:var(--text2);font-family:\'JetBrains Mono\',monospace;">DAY '+ch.parts[0].day+(ch.parts[ch.parts.length-1].day!==ch.parts[0].day?'–'+ch.parts[ch.parts.length-1].day:'')+' · '+ch.parts.length+' PARTS · '+fmtMin(tot)+'</div></div>'
-      +'<div style="width:90px;height:5px;background:#1a1d30;border-radius:3px;overflow:hidden;"><div style="width:'+pct+'%;height:100%;background:var(--green);"></div></div>'
-      +'<div style="font-size:11px;font-family:\'JetBrains Mono\',monospace;color:var(--text2);min-width:70px;text-align:right;">'+dn.length+'/'+ch.parts.length+' · '+pct+'%</div></div>'
-      +'<div id="dtc-b-'+i+'" style="display:'+(_dtOpen.has(i)?'block':'none')+';">';
-    ch.parts.forEach(x=>{
-      const rec=P[x.k], ip=IP[x.k]&&!rec;
-      h+='<div class="log-entry '+(rec?'lec-done':'manual')+'" style="cursor:pointer;align-items:center;border-top:1px solid var(--border);" onclick="openDTModal(\''+x.k+'\',event)"><div class="log-date">Day '+x.day+' · Pt.'+x.p+'</div><div class="log-txt" style="flex:1;">'+(rec?'✓ '+esc(rec.dateKey?fmtDK(rec.dateKey):''):ip?'⟳ in progress':'')+'</div><div class="log-htag">'+fmtMin(x.mins)+'</div></div>';
-    });
-    h+='</div></div>';
+function getDTStats(){
+  let tot=0,w=0,n=0,wm=0,tm=0;
+  DT_SCHED.forEach(r=>{ const k=r[0]+'_'+r[1]; tot++; tm+=r[3]; if(S.dtW[k]){w++;wm+=r[3];} if(S.dtN[k]) n++; });
+  return {tot,w,n,wm,tm};
+}
+function getDTChPct(ch){ const t=ch.parts.length, w=ch.parts.filter(x=>S.dtW[x.k]).length; return t>0?Math.round(w/t*100):0; }
+function renderDTChs(){
+  const cc=document.getElementById('dt-chs'); if(!cc) return;
+  const openSet=new Set(); cc.querySelectorAll('.cb.open').forEach(b=>openSet.add(b.id));
+  cc.innerHTML='';
+  DT_CHAPTERS.forEach((ch,ci)=>{
+    const id='dtcb-'+ci, p=getDTChPct(ch), col=pCol(p), tot=ch.parts.reduce((a,x)=>a+x.mins,0), isOpen=openSet.has(id);
+    const rows=ch.parts.map(x=>{
+      const k=x.k, ipc=S.dtIP[k]?'ip':'', ipHrs=S.dtIPHrs[k]?` ${S.dtIPHrs[k]}h`:'', sc=dtSel.has(k)?'checked':'';
+      const lbl='DT · '+ch.name+' Day '+x.day+' Pt. '+x.p+' ('+fmtMin(x.mins)+')';
+      return `<div data-k="${k}" class="lr lr-fr${S.dtIP[k]&&!S.dtW[k]?' in-progress':''}">
+        <span class="lnum">D${x.day}</span><span class="lnum" style="color:var(--muted)">Pt.${x.p}</span>
+        <span style="font-size:9px;color:var(--text2);">${esc(ch.name)}</span>
+        <span class="ldur">${fmtMin(x.mins)}</span>
+        <span class="lstat">
+          <input type="checkbox" class="lsel" ${sc} onchange="toggleSel('dt','${k}',this.checked)"/>
+          <button class="sbtn ${ipc}" onclick="openCompModal('dt','dt',${x.day},${x.p},'${lbl}',event)">${S.dtIP[k]&&!S.dtW[k]?'⟳ IN PROG'+ipHrs:S.dtW[k]?'✓ DONE':'MARK'}</button>
+          <button class="flag-btn ${S.dtFlag[k]?'flagged':''}" onclick="toggleFlag('dt','${k}','',event)" title="Flag as weak">🚩</button>
+        </span>
+      </div>`;
+    }).join('');
+    const bx=document.createElement('div'); bx.className='cb'+(isOpen?' open':''); bx.id=id;
+    bx.innerHTML=`<div class="ch ch-fr" onclick="toggleCB('${id}')">
+      <div><div class="ch-name">${esc(ch.name)}</div><div class="ch-tag">${ch.parts.length} PARTS · ${fmtMin(tot)}</div></div>
+      <span class="ch-hrs">${fmtMin(tot)}</span>
+      <div class="ch-pb"><div class="ch-pbf" style="width:${p}%"></div></div>
+      <span class="ch-pct" style="color:${col}">${p}%</span>
+      <span class="ch-arr">▼</span>
+    </div><div class="lt">${rows}</div>`;
+    cc.appendChild(bx);
   });
-  c.innerHTML=h;
+  updateSchStats(); updateSelCount('dt'); renderWeakSection();
 }
-function dtRefresh(){ save(); renderDT(); updateStats(); renderSG('sg-dash'); renderPace(); renderStreak(); renderHeatmap(); renderTodayFeed(); renderDashTodayFeed(); }
-function openDTModal(k,e){
-  if(e) e.stopPropagation();
-  const [d,p]=k.split('_').map(Number);
-  if((S.dtP||{})[k]){ // tap a finished part again to undo it
-    if(!confirm('Undo DT Day '+d+' Pt.'+p+'?')) return;
-    delete S.dtP[k]; S.log=S.log.filter(x=>x.ref!=='dt_'+k); dtRefresh(); return;
-  }
-  const label='DT · Day '+d+' Pt.'+p+' — '+DT_TOPIC[k]+' ('+fmtMin(DT_DUR[k])+')';
-  _compCtx={type:'dt',k,d,p,label,pref:window._prefHrs||null}; window._prefHrs=null;
-  document.getElementById('comp-modal-lec-label').textContent=label;
-  { const di=document.getElementById('comp-date'); di.value=todayStr(); di.dataset.t=todayStr(); di.max=todayStr(); }
-  document.getElementById('comp-hrs-row').classList.remove('show');
-  document.getElementById('comp-hrs-in').value=_compCtx.pref||'';
-  document.getElementById('comp-modal').classList.add('show');
-}
-function dtLogLine(ctx,mins,type,ref){
-  const dk=ctx.dk||todayStr();
-  return {date:fmtDK(dk),dateKey:dk,time:dk===todayStr()?new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}):'',text:'DT · Lec '+ctx.d+' Pt.'+ctx.p,hours:mins?(mins/60).toFixed(2):'',mins:mins||0,type,auto:true,ref};
-}
-function markDTDone(ctx,hrs){
-  const k=ctx.k, mins=hrs?Math.round(hrs*60):DT_DUR[k], dk=ctx.dk||todayStr();
-  S.dtP=S.dtP||{}; S.dtIP=S.dtIP||{};
-  S.dtP[k]={mins,dateKey:dk,ref:'dt_'+k}; delete S.dtIP[k];
-  S.log=S.log.filter(e=>e.ref!=='dt_'+k&&e.ref!=='dtip:'+k);
-  S.log.push(dtLogLine(ctx,mins,'done','dt_'+k));
-  dtRefresh();
-}
-function markDTProgress(ctx,hrs){
-  const k=ctx.k; S.dtIP=S.dtIP||{}; S.dtIP[k]=true;
-  S.log=S.log.filter(e=>e.ref!=='dtip:'+k);
-  S.log.push(dtLogLine(ctx,hrs?Math.round(hrs*60):0,'progress','dtip:'+k));
-  dtRefresh();
-}
-function delDT(l,p){
-  if(!confirm(l?'Undo DT Lec '+l+' Pt.'+p+'?':'Remove these earlier hours?')) return;
-  const k=l+'_'+p; delete (S.dtP||{})[k]; S.log=S.log.filter(e=>e.ref!=='dt_'+k);
-  dtRefresh();
+function renderDT(){ renderDTChs(); }
+function migrateDTUnify(){ // old dated DT records -> same watched/dated format as FR and AFM
+  const P=S.dtP||{}; let ch=false; S.dtW=S.dtW||{};
+  Object.keys(P).forEach(k=>{
+    if(k.indexOf('0_')===0) return; const rec=P[k];
+    if(!S.dtW[k]){ S.dtW[k]=true; }
+    let has=false; S.log.forEach(e=>{ if(e.ref==='dt_'+k){ e.ref='dt:'+k; has=true; } });
+    if(!has&&!S.log.some(e=>e.ref==='dt:'+k)){ const pr=k.split('_'); S.log.push({date:fmtDK(rec.dateKey),dateKey:rec.dateKey,text:'DT · Lec '+pr[0]+' Pt.'+pr[1],hours:(rec.mins/60).toFixed(2),mins:rec.mins,type:'done',auto:true,ref:'dt:'+k}); }
+    delete P[k]; ch=true;
+  });
+  S.log.forEach(e=>{ if(typeof e.ref==='string'&&e.ref.indexOf('dtip:')===0){ e.ref='dt:'+e.ref.slice(5)+':ip'; ch=true; } });
+  if(ch) save();
 }
 function afmLecs(ch){ return ch.lecs.map(x=>x.l); }
 function afmDurMin(ch,l){ const x=ch.lecs[l-1]; return x?d2m(x.d):0; }
@@ -1514,7 +1499,7 @@ function pruneOldAfm(){ // drop progress keys from the old AFM syllabus
 const FB_URL = 'https://ca-sept-2027-default-rtdb.asia-southeast1.firebasedatabase.app';
 const FB_PATH = '/warroom/state.json';
 const STORAGE_KEY = 'ca_wr_v5';
-const DEFAULT_STATE = {hours:{},topics:[],tests:[],revisions:{},log:[],frW:{},frN:{},frT:{},afmW:{},afmN:{},frIP:{},afmIP:{},frIPHrs:{},afmIPHrs:{},spom:{},aicitss:false,frFlag:{},afmFlag:{},targets:[],dtLecs:[],dtP:{},dtIP:{},streak:{cur:0,best:0,lastDate:''}};
+const DEFAULT_STATE = {hours:{},topics:[],tests:[],revisions:{},log:[],frW:{},frN:{},frT:{},afmW:{},afmN:{},frIP:{},afmIP:{},frIPHrs:{},afmIPHrs:{},spom:{},aicitss:false,frFlag:{},afmFlag:{},targets:[],dtLecs:[],dtP:{},dtIP:{},dtW:{},dtN:{},dtIPHrs:{},dtFlag:{},streak:{cur:0,best:0,lastDate:''}};
 
 const clone=o=>JSON.parse(JSON.stringify(o));
 let S = clone(DEFAULT_STATE);
@@ -1621,7 +1606,9 @@ function setStickyOffsets(){
   if(q('.schedule-sticky')) r.setProperty('--sub-h',q('.schedule-sticky').offsetHeight+'px');
 }
 window.addEventListener('resize',setStickyOffsets);
-let frSel = new Set(), afmSel = new Set();
+let frSel = new Set(), afmSel = new Set(), dtSel = new Set();
+function selOf(t){ return t==='fr'?frSel:t==='dt'?dtSel:afmSel; }
+function renderCh(t){ if(t==='fr') renderFRChs(); else if(t==='dt') renderDTChs(); else renderAFMChs(); }
 
 // ═══════════════════════════════════════════════
 // TABS
@@ -1632,7 +1619,7 @@ function switchTab(name,btn){
   document.getElementById('tab-'+name).classList.add('active');
   btn.classList.add('active'); setStickyOffsets();
   if(name==='dashboard'){renderStreak();renderHeatmap();renderTarget();renderPace();renderWeakSection();renderSG('sg-dash');updateStats();renderDashTodayFeed();}
-  if(name==='schedule'){renderFRChs();renderAFMChs();updateSchStats();}
+  if(name==='schedule'){renderFRChs();renderAFMChs();renderDTChs();updateSchStats();}
   if(name==='tests'){renderTests();}
   if(name==='spom'){renderSpom();}
   if(name==='revision'){renderRevision();}
@@ -1738,6 +1725,8 @@ function updateSchStats(){
   set('afm-pct',Math.round(afm.w/afm.tot*100)+'%');
   set('afm-hw',fmtMin(afm.wm));
   set('afm-hl',fmtMin(afm.tm-afm.wm));
+  const dt=getDTStats(); set('dt-w',dt.w); set('dt-n',dt.n); set('dt-pct',Math.round(dt.w/dt.tot*100)+'%');
+  set('dt-hw',fmtMin(dtMins())); set('dt-hl',fmtMin(Math.max(0,dt.tm-dtMins())));
 }
 
 // ═══════════════════════════════════════════════
@@ -1926,14 +1915,13 @@ let _compCtx = null; // {type, chId, l, p, label, k}
 
 function openCompModal(type,chId,l,p,label,e){
   e.stopPropagation();
-  const k = type==='fr' ? chId+'_'+l+'_'+p : chId+'_'+l;
-  const isW = type==='fr' ? S.frW[k] : S.afmW[k];
+  const k = type==='fr' ? chId+'_'+l+'_'+p : type==='dt' ? l+'_'+p : chId+'_'+l;
+  const isW = S[type+'W'][k];
   // If already fully done, toggle off on second tap
   if(isW){
-    if(type==='fr'){ S.frW[k]=false; delete S.frIP[k]; delete S.frIPHrs[k]; }
-    else { S.afmW[k]=false; delete S.afmIP[k]; delete S.afmIPHrs[k]; }
+    S[type+'W'][k]=false; delete S[type+'IP'][k]; delete S[type+'IPHrs'][k];
     save();
-    type==='fr'?renderFRChs():renderAFMChs();
+    renderCh(type);
     updateStats(); renderOverviews(); renderSG('sg-dash'); renderPace();
     return;
   }
@@ -1953,7 +1941,7 @@ function confirmComp(result){
   if(!_compCtx) return;
   if(result==='done'){
     _compCtx.dk=compDate();
-    (_compCtx.type==='dt'?markDTDone:markLecDone)(_compCtx, _compCtx.pref);
+    markLecDone(_compCtx, _compCtx.pref);
     closeCompModal();
   } else {
     document.getElementById('comp-hrs-row').classList.add('show');
@@ -1964,33 +1952,32 @@ function confirmProgSave(){
   if(!_compCtx) return;
   const hrs = parseFloat(document.getElementById('comp-hrs-in').value)||0;
   _compCtx.dk=compDate();
-  (_compCtx.type==='dt'?markDTProgress:markLecProgress)(_compCtx, hrs);
+  markLecProgress(_compCtx, hrs);
   closeCompModal();
 }
 
 function markLecDone(ctx, hrs){
   const {type,chId,l,p,label,k} = ctx;
-  if(type==='fr'){ S.frW[k]=true; delete S.frIP[k]; delete S.frIPHrs[k]; }
-  else { S.afmW[k]=true; delete S.afmIP[k]; delete S.afmIPHrs[k]; }
+  S[type+'W'][k]=true; delete S[type+'IP'][k]; delete S[type+'IPHrs'][k];
   // Auto-log activity
   autoLogActivity(label, 'done', hrs?Math.round(hrs*60):getDurFromKey(type,k), type+':'+k, ctx.dk);
   save();
-  type==='fr'?renderFRChs():renderAFMChs();
+  renderCh(type);
   updateStats(); renderOverviews(); renderSG('sg-dash'); renderPace();
   renderStreak(); renderHeatmap(); renderTodayFeed();
 }
 function markLecProgress(ctx, hrs){
   const {type,chId,l,p,label,k} = ctx;
-  if(type==='fr'){ S.frIP[k]=true; if(hrs) S.frIPHrs[k]=hrs; }
-  else { S.afmIP[k]=true; if(hrs) S.afmIPHrs[k]=hrs; }
+  S[type+'IP'][k]=true; if(hrs) S[type+'IPHrs'][k]=hrs;
   // Auto-log activity
   autoLogActivity(label, 'progress', hrs?Math.round(hrs*60):0, type+':'+k+':ip', ctx.dk);
   save();
-  type==='fr'?renderFRChs():renderAFMChs();
+  renderCh(type);
   updateStats(); renderStreak(); renderHeatmap(); renderTodayFeed();
 }
 
 function getDurFromKey(type, k){ // returns minutes
+  if(type==='dt') return DT_DUR[k]||0;
   if(type==='fr'){
     const parts=k.split('_'); const chId=parts.slice(0,-2).join('_');
     const l=parseInt(parts[parts.length-2]), p=parseInt(parts[parts.length-1]);
@@ -2024,19 +2011,19 @@ function toggleFRT(id,v){ S.frT[id]=v; save(); }
 // ═══════════════════════════════════════════════
 // BULK
 // ═══════════════════════════════════════════════
-function toggleSel(type,k,v){ (type==='fr'?frSel:afmSel)[v?'add':'delete'](k); updateSelCount(type); }
-function updateSelCount(type){ document.getElementById(type+'-sc').textContent=(type==='fr'?frSel:afmSel).size; }
+function toggleSel(type,k,v){ selOf(type)[v?'add':'delete'](k); updateSelCount(type); }
+function updateSelCount(type){ document.getElementById(type+'-sc').textContent=selOf(type).size; }
 function bulkMark(type,action){
-  const sel=type==='fr'?frSel:afmSel;
+  const sel=selOf(type);
   if(!sel.size){ alert('Select lectures first using the checkboxes!'); return; }
-  sel.forEach(k=>{ if(type==='fr'){ S[action==='w'?'frW':'frN'][k]=true; } else { S[action==='w'?'afmW':'afmN'][k]=true; } });
+  sel.forEach(k=>{ S[type+(action==='w'?'W':'N')][k]=true; });
   sel.clear(); save();
-  type==='fr'?renderFRChs():renderAFMChs();
+  renderCh(type);
   updateStats(); renderOverviews();
 }
-function clearSel(type){ (type==='fr'?frSel:afmSel).clear(); type==='fr'?renderFRChs():renderAFMChs(); }
+function clearSel(type){ selOf(type).clear(); renderCh(type); }
 function selAllOpen(type){
-  const sel=type==='fr'?frSel:afmSel; sel.clear();
+  const sel=selOf(type); sel.clear();
   document.querySelectorAll('#'+type+'-chs .cb.open .lr').forEach(r=>{ if(r.dataset.k) sel.add(r.dataset.k); });
   document.querySelectorAll('#'+type+'-chs .cb.open .lsel').forEach(cb=>cb.checked=true);
   updateSelCount(type);
@@ -2200,7 +2187,7 @@ function renderLog(cid){
   if(wrap){ wrap.style.display=hist.length>LIMIT||_logShowAll?'block':'none'; }
   if(btn){ btn.textContent=_logShowAll?'COLLAPSE':'SEE EARLIER ('+hist.length+' entries)'; }
 }
-function delLog(i){ if(!S.log[i]||!confirm('Delete this log entry?')) return; const _r=S.log[i].ref; if(typeof _r==='string'&&_r.indexOf('dt_')===0) delete (S.dtP||{})[_r.slice(3)]; S.log.splice(i,1); save(); renderLog('le2'); renderLog('le1'); renderTodayFeed(); renderDashTodayFeed(); renderHeatmap(); renderStreak(); }
+function delLog(i){ if(!S.log[i]||!confirm('Delete this log entry?')) return; S.log.splice(i,1); save(); renderLog('le2'); renderLog('le1'); renderTodayFeed(); renderDashTodayFeed(); renderHeatmap(); renderStreak(); }
 function addBackfill(){
   const f=document.getElementById('bf-from').value;
   const mins=Math.round((parseFloat(document.getElementById('bf-h').value)||0)*60)+(parseInt(document.getElementById('bf-m').value)||0);
@@ -2258,6 +2245,7 @@ function setLogMode(mode){
 }
 
 function getNextUnwatched(type, count){
+  if(type==='dt'){ const res=[]; for(const ch of DT_CHAPTERS) for(const x of ch.parts) if(!S.dtW[x.k]){ res.push({k:x.k,label:'DT · '+ch.name+' Day '+x.day+' Pt. '+x.p,type:'dt',chId:'dt',l:x.day,p:x.p,dur:''}); if(res.length>=count) return res; } return res; }
   if(type==='fr'){
     const res=[];
     for(const ch of FR_CHAPTERS){
@@ -2302,6 +2290,17 @@ function populateLogLecDrop(){
     drop.appendChild(grp);
   }
   // Then all unwatched by chapter
+  if(subj==='dt'){
+    DT_CHAPTERS.forEach(ch=>{
+      const un=ch.parts.filter(x=>!S.dtW[x.k]); if(!un.length) return;
+      const grp=document.createElement('optgroup'); grp.label=ch.name;
+      un.forEach(x=>{ const o=document.createElement('option');
+        o.value=JSON.stringify({type:'dt',chId:'dt',l:x.day,p:x.p,label:'DT · '+ch.name+' Day '+x.day+' Pt. '+x.p+' ('+fmtMin(x.mins)+')',dur:''});
+        o.textContent='Day '+x.day+' Pt. '+x.p+' — '+fmtMin(x.mins); grp.appendChild(o); });
+      drop.appendChild(grp);
+    });
+    return;
+  }
   if(subj==='fr'){
     FR_CHAPTERS.forEach(ch=>{
       const unwatched=ch.lecs.filter(l=>!S.frW[ch.id+'_'+l.l+'_'+l.p]);
@@ -2598,7 +2597,7 @@ function renderPace(){
     let extra='';
     if(id==='fr'){ const f=getFRStats(); extra=' · '+f.w+'/'+f.tot+' parts'; }
     else if(id==='afm'){ const a=getAFMStats(); extra=' · '+a.w+'/'+a.tot+' lectures'; }
-    else if(id==='dt'){ extra=' · '+Object.keys(S.dtP||{}).filter(k=>k.indexOf('0_')!==0).length+'/'+DT_SCHED.length+' parts'; }
+    else if(id==='dt'){ extra=' · '+getDTStats().w+'/'+DT_SCHED.length+' parts'; }
     const needC=cls(need/60,2,4);
     const logBox=(id==='idt'||id==='audit'||id==='ibs')
       ? `<div style="margin-top:6px;display:flex;gap:4px;align-items:center;"><input id="st-h-${id}" type="number" min="0" placeholder="h" style="${inp}"/><input id="st-m-${id}" type="number" min="0" max="59" placeholder="m" style="${inp}"/><button class="bbtn" style="padding:3px 8px;" onclick="addSubTime('${id}')">+ LOG</button></div>`
@@ -2624,22 +2623,16 @@ function renderPace(){
 // ═══════════════════════════════════════════════
 function toggleFlag(type,k,label,e){
   e.stopPropagation();
-  if(type==='fr'){ S.frFlag[k]=!S.frFlag[k]; if(!S.frFlag[k]) delete S.frFlag[k]; }
-  else { S.afmFlag[k]=!S.afmFlag[k]; if(!S.afmFlag[k]) delete S.afmFlag[k]; }
-  save();
-  if(type==='fr') renderFRChs(); else renderAFMChs();
-  renderWeakSection();
+  const m=S[type+'Flag']; m[k]=!m[k]; if(!m[k]) delete m[k];
+  save(); renderCh(type); renderWeakSection();
 }
-function unFlag(type,k){
-  if(type==='fr'){ delete S.frFlag[k]; save(); renderFRChs(); }
-  else { delete S.afmFlag[k]; save(); renderAFMChs(); }
-  renderWeakSection();
-}
+function unFlag(type,k){ delete S[type+'Flag'][k]; save(); renderCh(type); renderWeakSection(); }
 function renderWeakSection(){
   const c = document.getElementById('weak-section-dash'); if(!c)return;
   const frFlags = Object.keys(S.frFlag||{});
   const afmFlags = Object.keys(S.afmFlag||{});
-  const total = frFlags.length + afmFlags.length;
+  const dtFlags = Object.keys(S.dtFlag||{});
+  const total = frFlags.length + afmFlags.length + dtFlags.length;
   if(!total){ c.innerHTML=''; return; }
   
   const frItems = frFlags.map(k=>{
@@ -2655,9 +2648,10 @@ function renderWeakSection(){
     return `<div class="weak-item">🚩 <span>${ch.name} — Lec ${lec}</span><span class="weak-tag">AFM</span><button class="weak-unflag" onclick="unFlag('afm','${k}')">✕ unflag</button></div>`;
   }).join('');
   
+  const dtItems = dtFlags.map(k=>{ const pr=k.split('_'); return `<div class="weak-item">🚩 <span>${esc(DT_TOPIC[k]||'DT')} — Day ${pr[0]} Pt.${pr[1]}</span><span class="weak-tag">DT</span><button class="weak-unflag" onclick="unFlag('dt','${k}')">✕ unflag</button></div>`; }).join('');
   c.innerHTML=`<div class="weak-section" style="margin-bottom:24px;">
     <div class="weak-head"><h3>⚠ WEAK CHAPTERS — NEEDS REVISIT</h3><span class="weak-count">${total} flagged</span></div>
-    ${frItems}${afmItems}
+    ${frItems}${afmItems}${dtItems}
   </div>`;
 }
 
@@ -2666,7 +2660,7 @@ function renderWeakSection(){
 // ═══════════════════════════════════════════════
 async function init(){
   await loadState();
-  pruneOldAfm(); migrateDT(); migrateDTParts(); cleanLog();
+  pruneOldAfm(); migrateDT(); migrateDTParts(); migrateDTUnify(); cleanLog();
   updateCountdowns();
   populateTestSel();
   renderSG('sg-dash');
@@ -2680,7 +2674,7 @@ async function init(){
   renderPace();
   renderWeakSection();
   renderFRChs();
-  renderAFMChs(); renderDT();
+  renderAFMChs(); renderDTChs();
   renderDashTodayFeed();
   renderTodayFeed();
   document.getElementById('nt-date').value=todayStr();
@@ -2693,10 +2687,10 @@ async function init(){
   // Poll every 30s (skipped while there are unsynced local changes)
   setInterval(async ()=>{
     if(isDirty()||_flushing) return;
-    await loadState(); migrateDTParts(); cleanLog();
+    await loadState(); migrateDTParts(); migrateDTUnify(); cleanLog();
     renderSG('sg-dash'); updateStats(); renderStreak(); renderHeatmap();
     renderTarget(); renderPace(); renderWeakSection(); renderDashTodayFeed(); renderTodayFeed();
-    if(document.getElementById('tab-schedule').classList.contains('active')){renderFRChs();renderAFMChs();}
+    if(document.getElementById('tab-schedule').classList.contains('active')){renderFRChs();renderAFMChs();renderDTChs();}
   }, 30000);
 }
 init();
